@@ -397,27 +397,40 @@ module Killbill #:nodoc:
           options[:payment_processor_account_id] = payment_processor_account_id
 
           # Populate the Payer id if missing
-          options[:payer_id] = ::Killbill::Plugin::ActiveMerchant::Utils.normalized(properties_hash, :payer_id)
-          begin
-            options[:payer_id] ||= find_payer_id(options[:token],
-                                                 kb_account_id,
-                                                 context.tenant_id,
-                                                 payment_processor_account_id)
-          rescue => e
-            # Maybe invalid token?
-            response = @response_model.create(:api_call                     => api_call_type,
-                                              :kb_account_id                => kb_account_id,
-                                              :kb_payment_id                => kb_payment_id,
-                                              :kb_payment_transaction_id    => kb_payment_transaction_id,
-                                              :transaction_type             => transaction_type,
-                                              :authorization                => nil,
-                                              :payment_processor_account_id => payment_processor_account_id,
-                                              :kb_tenant_id                 => context.tenant_id,
-                                              :success                      => false,
-                                              :created_at                   => Time.now.utc,
-                                              :updated_at                   => Time.now.utc,
-                                              :message                      => { :payment_plugin_status => :CANCELED, :exception_class => e.class.to_s, :exception_message => e.message }.to_json)
-            return response.to_transaction_info_plugin(nil)
+          puts options
+
+          # baid(reference_id) 가 포함된 요청은 token 밸리데이션을 수행할 필요 없다.
+          # baid(reference_id) 가 포함된 요청은 options[:payer_id] 가 항상 같이 있다고 가정한다.
+
+          unless options[:reference_id]
+            options[:payer_id] = ::Killbill::Plugin::ActiveMerchant::Utils.normalized(properties_hash, :payer_id)
+            begin
+
+              puts 'begin'
+
+              options[:payer_id] ||= find_payer_id(options[:token],
+                                                   kb_account_id,
+                                                   context.tenant_id,
+                                                   payment_processor_account_id)
+            rescue => e
+
+              puts 'Maybe invalid token'
+
+              # Maybe invalid token?
+              response = @response_model.create(:api_call                     => api_call_type,
+                                                :kb_account_id                => kb_account_id,
+                                                :kb_payment_id                => kb_payment_id,
+                                                :kb_payment_transaction_id    => kb_payment_transaction_id,
+                                                :transaction_type             => transaction_type,
+                                                :authorization                => nil,
+                                                :payment_processor_account_id => payment_processor_account_id,
+                                                :kb_tenant_id                 => context.tenant_id,
+                                                :success                      => false,
+                                                :created_at                   => Time.now.utc,
+                                                :updated_at                   => Time.now.utc,
+                                                :message                      => { :payment_plugin_status => :CANCELED, :exception_class => e.class.to_s, :exception_message => e.message }.to_json)
+              return response.to_transaction_info_plugin(nil)
+            end
           end
 
           properties = merge_properties(properties, options)
